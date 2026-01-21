@@ -2,9 +2,9 @@
 import { AppSettings, VehicleType, PaymentType } from './types';
 
 export const INITIAL_SETTINGS: AppSettings = {
-  companyName: '',
-  description: '',
-  ownerName: '',
+  companyName: 'Vigneshwara Harvester',
+  description: 'Enterprise Harvester Billing System',
+  ownerName: 'Palwai Mahender Reddy',
   address: '',
   mobile: '',
   email: '',

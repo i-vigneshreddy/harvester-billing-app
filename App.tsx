@@ -15,8 +15,7 @@ import {
   Fuel,
   Contact,
   LogOut,
-  Network,
-  Smartphone
+  Network
 } from 'lucide-react';
 import { HashRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import NewBilling from './views/NewBilling';
@@ -30,7 +29,6 @@ import Dashboard from './views/Dashboard';
 import ExpensesView from './views/ExpensesView';
 import AgentsView from './views/AgentsView';
 import SiteMap from './views/SiteMap';
-import PlayStoreView from './views/PlayStoreView';
 import Auth from './views/Auth';
 import NotificationCenter from './components/NotificationCenter';
 import { INITIAL_SETTINGS } from './constants';
@@ -50,7 +48,6 @@ const Sidebar = ({ isOpen, toggle, settings }: { isOpen: boolean, toggle: () => 
     { name: 'User Management', icon: Users, path: '/users' },
     { name: 'Settings', icon: SettingsIcon, path: '/settings' },
     { name: 'Site Map', icon: Network, path: '/sitemap' },
-    { name: 'Play Store', icon: Smartphone, path: '/playstore' },
   ];
 
   const companyDisplay = settings.companyName || 'Harvester Billing';
@@ -351,7 +348,6 @@ export default function App() {
               <Route path="/users" element={<UserManagement />} />
               <Route path="/settings" element={<SettingsView settings={settings} onUpdate={setSettings} />} />
               <Route path="/sitemap" element={<SiteMap settings={settings} />} />
-              <Route path="/playstore" element={<PlayStoreView />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>

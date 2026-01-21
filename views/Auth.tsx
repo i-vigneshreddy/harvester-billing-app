@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Mail, 
   Lock, 
@@ -11,10 +11,12 @@ import {
   Building2, 
   MapPin, 
   UserCheck,
-  KeyRound
+  KeyRound,
+  Check
 } from 'lucide-react';
 import { User, AppSettings } from '../types';
 import { INITIAL_SETTINGS } from '../constants';
+import { GoogleDriveService } from '../GoogleDriveService';
 
 interface Props {
   onLogin: (user: User) => void;
@@ -24,9 +26,10 @@ type AuthMode = 'LOGIN' | 'SIGNUP';
 
 const Auth: React.FC<Props> = ({ onLogin }) => {
   const [mode, setMode] = useState<AuthMode>('LOGIN');
+  const [rememberMe, setRememberMe] = useState(false);
   const [formData, setFormData] = useState({
-    businessName: '',
-    ownerName: '',
+    businessName: 'Vigneshwara Harvester',
+    ownerName: 'Palwai Mahender Reddy',
     userName: '', // Full Name
     userId: '',   // Username for login
     mobile: '',
@@ -38,12 +41,26 @@ const Auth: React.FC<Props> = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  // Load remembered credentials on mount
+  useEffect(() => {
+    const remembered = localStorage.getItem('harvester_remembered');
+    if (remembered) {
+      try {
+        const { userId, password } = JSON.parse(remembered);
+        setFormData(prev => ({ ...prev, userId, password }));
+        setRememberMe(true);
+      } catch (e) {
+        localStorage.removeItem('harvester_remembered');
+      }
+    }
+  }, []);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     setError('');
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const users: User[] = JSON.parse(localStorage.getItem('harvester_users') || '[]');
     const loginId = formData.userId.trim();
@@ -53,22 +70,37 @@ const Auth: React.FC<Props> = ({ onLogin }) => {
       (u.userId === loginId || u.email === loginId) && u.password === loginPassword
     );
 
-    if (foundUser) {
-      onLogin(foundUser);
-    } else if (loginId === 'admin' && loginPassword === 'admin') {
-      onLogin({
+    if (foundUser || (loginId === 'admin' && loginPassword === 'admin')) {
+      const userToLogin = foundUser || {
         id: 'admin-id',
-        name: 'Admin',
+        name: 'Palwai Mahender Reddy',
         email: 'Palwaimahi@gmail.com',
         userId: 'admin',
         mobile: '9966146633'
-      });
+      };
+
+      // Handle "Remember Me"
+      if (rememberMe) {
+        localStorage.setItem('harvester_remembered', JSON.stringify({
+          userId: loginId,
+          password: loginPassword
+        }));
+      } else {
+        localStorage.removeItem('harvester_remembered');
+      }
+
+      // Trigger Cloud Sync if enabled
+      if (GoogleDriveService.isConnected()) {
+        await GoogleDriveService.syncUsers();
+      }
+
+      onLogin(userToLogin);
     } else {
       setError('Invalid User ID or Password.');
     }
   };
 
-  const handleSignUp = (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validation
@@ -88,7 +120,7 @@ const Auth: React.FC<Props> = ({ onLogin }) => {
     // 1. Create User Profile
     const newUser: User = {
       id: newUserId,
-      name: formData.userName,
+      name: formData.userName || formData.ownerName,
       email: formData.email,
       userId: formData.userId,
       mobile: formData.mobile,
@@ -105,9 +137,15 @@ const Auth: React.FC<Props> = ({ onLogin }) => {
       email: formData.email
     };
 
-    localStorage.setItem('harvester_users', JSON.stringify([...users, newUser]));
+    const updatedUsers = [...users, newUser];
+    localStorage.setItem('harvester_users', JSON.stringify(updatedUsers));
     localStorage.setItem(`u_${newUserId}_settings`, JSON.stringify(userSettings));
     
+    // Trigger Cloud Sync after registration
+    if (GoogleDriveService.isConnected()) {
+      await GoogleDriveService.syncUsers();
+    }
+
     setSuccessMsg('Business Registered! You can now log in.');
     setMode('LOGIN');
     // Clear sensitive fields
@@ -160,6 +198,25 @@ const Auth: React.FC<Props> = ({ onLogin }) => {
                 <Lock className="absolute left-4 top-4 text-gray-400" size={20} />
               </div>
             </div>
+            
+            <div className="flex items-center justify-between px-1">
+              <label className="flex items-center cursor-pointer group">
+                <div className="relative">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only" 
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                  />
+                  <div className={`w-5 h-5 border-2 rounded-md transition-all flex items-center justify-center ${rememberMe ? 'bg-emerald-600 border-emerald-600' : 'bg-white border-gray-200 group-hover:border-emerald-300'}`}>
+                    {rememberMe && <Check size={14} className="text-white" />}
+                  </div>
+                </div>
+                <span className="ml-2 text-[11px] font-black text-gray-500 uppercase tracking-widest select-none">Save login details</span>
+              </label>
+              <button type="button" className="text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:text-emerald-700 transition-colors">Forgot Access?</button>
+            </div>
+
             <button type="submit" className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black shadow-lg shadow-emerald-900/20 hover:bg-emerald-700 active:scale-[0.98] transition-all flex items-center justify-center space-x-3 uppercase tracking-widest text-sm mt-8">
               <span>Access Business Portal</span>
               <ArrowRight size={20} />
@@ -196,7 +253,7 @@ const Auth: React.FC<Props> = ({ onLogin }) => {
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Owner Full Name</label>
                   <div className="relative">
-                    <input type="text" name="ownerName" required value={formData.ownerName} onChange={handleInputChange} className="w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl font-bold text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="P. Mahendher Reddy" />
+                    <input type="text" name="ownerName" required value={formData.ownerName} onChange={handleInputChange} className="w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl font-bold text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Palwai Mahender Reddy" />
                     <UserCheck className="absolute left-3.5 top-3 text-emerald-400/50" size={18} />
                   </div>
                 </div>

@@ -130,4 +130,6 @@ export interface AppSettings {
   upiId: string;
   logo?: string;
   theme: 'light' | 'dark';
+  googleDriveEnabled?: boolean;
+  googleDriveLastSync?: string;
 }
