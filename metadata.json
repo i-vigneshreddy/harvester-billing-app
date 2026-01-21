@@ -1,0 +1,7 @@
+{
+  "name": "Harvester Billing - Vigneshwara Harvester",
+  "description": "Enterprise-grade billing and management system for Vigneshwara Harvester. Managed by Palwai Mahendher Reddy.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
