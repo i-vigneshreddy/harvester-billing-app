@@ -33,6 +33,7 @@ import Auth from './views/Auth';
 import NotificationCenter from './components/NotificationCenter';
 import { INITIAL_SETTINGS } from './constants';
 import { AppSettings, User, AppNotification, NotificationType, Bill } from './types';
+import { GoogleDriveService } from './GoogleDriveService';
 
 const Sidebar = ({ isOpen, toggle, settings }: { isOpen: boolean, toggle: () => void, settings: AppSettings }) => {
   const location = useLocation();
@@ -117,7 +118,7 @@ const Header = ({
 }) => {
   return (
     <header className="h-16 bg-white dark:bg-[#111a15] border-b border-gray-100 dark:border-emerald-900/30 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30 transition-colors duration-300">
-      <div className="flex items-center max-w-[60%]">
+      <div className="flex items-center max-w-[50%]">
         <button 
           onClick={toggleSidebar} 
           className="p-2 mr-4 lg:hidden rounded-xl text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
@@ -177,15 +178,12 @@ export default function App() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
 
-  // Apply theme and update document title
   useEffect(() => {
     if (settings.theme === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
-    
-    // Dynamic Page Title
     document.title = settings.companyName 
       ? `${settings.companyName} - Harvester Billing` 
       : 'Harvester Billing System';
@@ -294,6 +292,10 @@ export default function App() {
 
     const savedNotifs = localStorage.getItem(`${prefix}notifications`);
     if (savedNotifs) setNotifications(JSON.parse(savedNotifs));
+
+    if (GoogleDriveService.isConnected()) {
+      GoogleDriveService.syncUsers(user.id);
+    }
   };
 
   const handleLogout = () => {

@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Customer, WorkingSession, Bill, PaymentType, Vehicle, Agent, AppSettings, NotificationType, AppNotification, VehicleType } from '../types';
 import { INITIAL_SETTINGS } from '../constants';
 import BillPreviewModal from '../components/BillPreviewModal';
+import { GoogleDriveService } from '../GoogleDriveService';
 
 const timeToDecimal = (time: string): number => {
   const [hours, minutes] = time.split(':').map(Number);
@@ -134,6 +135,55 @@ const NewBilling: React.FC<Props> = ({ onNewNotification }) => {
   const totalDecimalHours = sessions.reduce((sum, s) => sum + timeToDecimal(s.workTime), 0);
   const dueAmount = totalBillAmount - paidAmount;
 
+  const saveBill = async () => {
+    if (!customer.name || !customer.mobile || sessions.length === 0) {
+      alert("Please fill in customer details and add sessions.");
+      return;
+    }
+    const billToSave: Bill = {
+      id: editingBillId || 'BILL-' + Date.now(),
+      customer: customer as Customer,
+      sessions,
+      totalAmount: totalBillAmount,
+      paidAmount,
+      dueAmount,
+      paymentType,
+      createdAt: new Date().toISOString()
+    };
+    const existingBills: Bill[] = JSON.parse(localStorage.getItem(`${userPrefix}bills`) || '[]');
+    let updatedBills: Bill[];
+    if (editingBillId) {
+      updatedBills = existingBills.map(b => b.id === editingBillId ? billToSave : b);
+    } else {
+      updatedBills = [...existingBills, billToSave];
+    }
+    localStorage.setItem(`${userPrefix}bills`, JSON.stringify(updatedBills));
+
+    if (GoogleDriveService.isConnected()) {
+      await GoogleDriveService.syncUsers(sessionUser.id);
+    }
+
+    if (onNewNotification) {
+      if (dueAmount > 0) {
+        onNewNotification({
+          title: 'Outstanding Due Recorded',
+          message: `Bill for ${customer.name} saved. Balance: Rs. ${dueAmount.toFixed(0)}`,
+          type: NotificationType.OVERDUE
+        });
+      } else {
+        onNewNotification({
+          title: 'Full Payment Logged',
+          message: `Bill for ${customer.name} fully settled.`,
+          type: NotificationType.SUCCESS
+        });
+      }
+    }
+
+    alert("Bill saved successfully!");
+    resetForm();
+    navigate('/history');
+  };
+
   const constructShareMessage = (isSMS = false) => {
     const amountToPay = dueAmount > 0 ? dueAmount : totalBillAmount;
     const upiId = settings.upiId || 'mplawai@ybl';
@@ -148,11 +198,9 @@ const NewBilling: React.FC<Props> = ({ onNewNotification }) => {
 
     const vehicleText = usedVehiclesList.length > 0 ? usedVehiclesList.join(', ') : 'Harvester';
     
-    // For SMS, we keep the UPI link minimal to save characters
     const upiUri = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(company)}&am=${amountToPay.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Bill ' + billRef)}`;
     
     if (isSMS) {
-      // Ultra-compact SMS format to stay close to 160-character limit
       return `${company.toUpperCase()}\n` +
              `Mob: ${customer.mobile || '-'}\n` +
              `Mach: ${vehicleText}\n` +
@@ -162,7 +210,6 @@ const NewBilling: React.FC<Props> = ({ onNewNotification }) => {
              `Bal: ₹${dueAmount.toFixed(0)}\n` +
              `${upiUri}`;
     } else {
-      // Clean, minimalist WhatsApp format
       return `*${company.toUpperCase()} - BILL SUMMARY*\n\n` +
              `*Customer:* ${customer.name || 'Client'}\n` +
              `*Village:* ${customer.village || '-'}\n` +
@@ -195,53 +242,7 @@ const NewBilling: React.FC<Props> = ({ onNewNotification }) => {
     const message = constructShareMessage(true);
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
     const smsUrl = `sms:${customer.mobile}${isIOS ? '&' : '?'}body=${encodeURIComponent(message)}`;
-    
     window.location.href = smsUrl;
-  };
-
-  const saveBill = () => {
-    if (!customer.name || !customer.mobile || sessions.length === 0) {
-      alert("Please fill in customer details and add sessions.");
-      return;
-    }
-    const billToSave: Bill = {
-      id: editingBillId || 'BILL-' + Date.now(),
-      customer: customer as Customer,
-      sessions,
-      totalAmount: totalBillAmount,
-      paidAmount,
-      dueAmount,
-      paymentType,
-      createdAt: new Date().toISOString()
-    };
-    const existingBills: Bill[] = JSON.parse(localStorage.getItem(`${userPrefix}bills`) || '[]');
-    let updatedBills: Bill[];
-    if (editingBillId) {
-      updatedBills = existingBills.map(b => b.id === editingBillId ? billToSave : b);
-    } else {
-      updatedBills = [...existingBills, billToSave];
-    }
-    localStorage.setItem(`${userPrefix}bills`, JSON.stringify(updatedBills));
-
-    if (onNewNotification) {
-      if (dueAmount > 0) {
-        onNewNotification({
-          title: 'Outstanding Due Recorded',
-          message: `Bill for ${customer.name} saved. Balance: Rs. ${dueAmount.toFixed(0)}`,
-          type: NotificationType.OVERDUE
-        });
-      } else {
-        onNewNotification({
-          title: 'Full Payment Logged',
-          message: `Bill for ${customer.name} fully settled.`,
-          type: NotificationType.SUCCESS
-        });
-      }
-    }
-
-    alert("Bill saved successfully!");
-    resetForm();
-    navigate('/history');
   };
 
   return (
@@ -336,12 +337,6 @@ const NewBilling: React.FC<Props> = ({ onNewNotification }) => {
               </div>
             </div>
           ))}
-          {sessions.length === 0 && (
-            <div className="text-center py-10 text-gray-300 dark:text-emerald-900/50 italic border-2 border-dashed border-gray-50 dark:border-emerald-900/10 rounded-3xl">
-              <User size={32} className="mx-auto mb-2 opacity-10" />
-              <p className="font-black uppercase tracking-widest text-[9px]">Tap "Add Session" to record field work</p>
-            </div>
-          )}
         </div>
         <div className="flex justify-end mt-6">
            <button onClick={addSession} className="bg-emerald-600 text-white px-8 py-3.5 rounded-2xl font-black flex items-center hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/10 uppercase tracking-widest text-xs">
@@ -381,33 +376,6 @@ const NewBilling: React.FC<Props> = ({ onNewNotification }) => {
               <span className={`text-4xl font-black tracking-tighter ${dueAmount > 0 ? 'text-orange-400' : 'text-emerald-400'}`}>Rs. {dueAmount.toFixed(0)}</span>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section className="bg-white dark:bg-[#121a16] p-6 rounded-[2rem] shadow-xl border border-gray-50 dark:border-emerald-900/20">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-sm font-black text-emerald-800 dark:text-emerald-400 uppercase tracking-widest">Digital Bill Sharing</h3>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <button 
-            onClick={handleShareWhatsApp}
-            className="flex items-center justify-center space-x-3 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black shadow-lg transition-all active:scale-95 uppercase tracking-widest text-xs border border-emerald-400/20"
-          >
-            <MessageCircle size={18} />
-            <span>Share via WhatsApp</span>
-          </button>
-          <button 
-            onClick={handleShareSMS}
-            className="flex items-center justify-center space-x-3 bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black shadow-lg transition-all active:scale-95 uppercase tracking-widest text-xs border border-blue-400/20"
-          >
-            <Send size={18} />
-            <span>Share via SMS</span>
-          </button>
-        </div>
-        <div className="mt-4 flex flex-col items-center space-y-2">
-          <p className="text-[10px] text-gray-400 dark:text-emerald-500/50 font-bold uppercase tracking-widest text-center">
-            Sharing sends a minimalist bill summary with a direct UPI payment link. SMS format is optimized for device limits.
-          </p>
         </div>
       </section>
 

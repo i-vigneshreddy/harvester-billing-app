@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Expense, ExpenseCategory, Vehicle, AppNotification, NotificationType } from '../types';
-import { Plus, Fuel, Utensils, FileText, Wallet, Trash2, Camera, ZoomIn, X, Eye } from 'lucide-react';
+import { Plus, Fuel, Utensils, FileText, Wallet, Trash2, Camera, ZoomIn, X, Eye, Save } from 'lucide-react';
+import { GoogleDriveService } from '../GoogleDriveService';
 
 interface Props {
   onNewNotification?: (notif: Partial<AppNotification>) => void;
@@ -42,7 +43,7 @@ const ExpensesView: React.FC<Props> = ({ onNewNotification }) => {
     }
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!newExp.amount || !newExp.vehicleId) {
       alert("Please select a vehicle and enter an amount.");
       return;
@@ -58,6 +59,11 @@ const ExpensesView: React.FC<Props> = ({ onNewNotification }) => {
     const updated = [expense, ...expenses];
     setExpenses(updated);
     localStorage.setItem(`${userPrefix}expenses`, JSON.stringify(updated));
+
+    // Cloud Sync
+    if (GoogleDriveService.isConnected()) {
+      await GoogleDriveService.syncUsers(sessionUser.id);
+    }
 
     // Trigger Notification for major expenses
     if (onNewNotification) {
@@ -87,13 +93,16 @@ const ExpensesView: React.FC<Props> = ({ onNewNotification }) => {
     setShowForm(false);
   };
 
-  const deleteExpense = (id: string) => {
+  const deleteExpense = async (id: string) => {
     if (confirm("Delete this expense record?")) {
       const updated = expenses.filter(e => e.id !== id);
       setExpenses(updated);
       localStorage.setItem(`${userPrefix}expenses`, JSON.stringify(updated));
       
-      // Clear form after deletion
+      if (GoogleDriveService.isConnected()) {
+        await GoogleDriveService.syncUsers(sessionUser.id);
+      }
+
       setNewExp({ 
         category: ExpenseCategory.DIESEL,
         amount: 0,
@@ -107,75 +116,74 @@ const ExpensesView: React.FC<Props> = ({ onNewNotification }) => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-20">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center px-2">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800 tracking-tight">Operational Expenses</h2>
-          <p className="text-sm text-gray-500 font-medium">Record and track all harvester maintenance and operational costs.</p>
+          <h2 className="text-2xl font-black text-gray-800 dark:text-gray-100 tracking-tight uppercase">Operational Expenses</h2>
+          <p className="text-[10px] text-gray-400 dark:text-emerald-500/50 font-black uppercase tracking-widest mt-1">Maintenance & Fuel Ledger</p>
         </div>
         <button 
           onClick={() => setShowForm(!showForm)}
-          className={`px-6 py-2.5 rounded-xl flex items-center font-bold transition-all shadow-md ${showForm ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
+          className={`px-6 py-3 rounded-2xl flex items-center font-black transition-all shadow-lg text-[10px] uppercase tracking-widest ${showForm ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
         >
-          {showForm ? 'Close Form' : <><Plus size={18} className="mr-2" /> Record Expense</>}
+          {showForm ? <><X size={16} className="mr-2"/> Cancel</> : <><Plus size={16} className="mr-2" /> Record Cost</>}
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-white p-8 rounded-3xl shadow-xl border border-emerald-50 animate-in slide-in-from-top duration-300">
+        <div className="bg-white dark:bg-[#121a16] p-8 rounded-[2rem] shadow-2xl border border-gray-100 dark:border-emerald-900/10 animate-in slide-in-from-top duration-300 mx-2">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-            <div className="space-y-1">
-              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Vehicle</label>
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-black text-gray-400 dark:text-emerald-500/40 uppercase tracking-widest ml-1">Vehicle Asset</label>
               <select 
                 value={newExp.vehicleId}
                 onChange={(e) => setNewExp({...newExp, vehicleId: e.target.value})}
-                className="w-full bg-white border border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-700 transition-all"
+                className="w-full bg-gray-50/50 dark:bg-[#1a2e26] border border-gray-100 dark:border-emerald-900/20 rounded-2xl p-3 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-700 dark:text-emerald-50 transition-all text-sm appearance-none"
               >
-                <option value="">Choose Vehicle</option>
+                <option value="">Choose Machine</option>
                 {vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.number})</option>)}
               </select>
             </div>
-            <div className="space-y-1">
-              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Category</label>
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-black text-gray-400 dark:text-emerald-500/40 uppercase tracking-widest ml-1">Cost Type</label>
               <select 
                 value={newExp.category}
                 onChange={(e) => setNewExp({...newExp, category: e.target.value as ExpenseCategory})}
-                className="w-full bg-white border border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-700 transition-all"
+                className="w-full bg-gray-50/50 dark:bg-[#1a2e26] border border-gray-100 dark:border-emerald-900/20 rounded-2xl p-3 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-700 dark:text-emerald-50 transition-all text-sm appearance-none"
               >
                 {Object.values(ExpenseCategory).map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
-            <div className="space-y-1">
-              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Amount (₹)</label>
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-black text-gray-400 dark:text-emerald-500/40 uppercase tracking-widest ml-1">Amount (₹)</label>
               <input 
                 type="number" 
                 value={newExp.amount || ''}
                 onChange={(e) => setNewExp({...newExp, amount: Number(e.target.value)})}
-                className="w-full bg-white border border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-700 transition-all"
+                className="w-full bg-gray-50/50 dark:bg-[#1a2e26] border border-gray-100 dark:border-emerald-900/20 rounded-2xl p-3 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-700 dark:text-emerald-50 transition-all text-sm"
                 placeholder="0.00"
               />
             </div>
-            <div className="space-y-1">
-              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Date</label>
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-black text-gray-400 dark:text-emerald-500/40 uppercase tracking-widest ml-1">Date</label>
               <input 
                 type="date" 
                 value={newExp.date}
                 onChange={(e) => setNewExp({...newExp, date: e.target.value})}
-                className="w-full bg-white border border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-700 transition-all"
+                className="w-full bg-gray-50/50 dark:bg-[#1a2e26] border border-gray-100 dark:border-emerald-900/20 rounded-2xl p-3 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-700 dark:text-emerald-50 transition-all text-sm"
               />
             </div>
-            <div className="space-y-1">
-              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Bill Copy</label>
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-black text-gray-400 dark:text-emerald-500/40 uppercase tracking-widest ml-1">Proof/Bill</label>
               <div className="flex items-center space-x-2">
-                <label className="flex-1 cursor-pointer bg-white border border-dashed border-gray-300 px-4 py-2.5 rounded-xl text-xs flex items-center justify-center hover:bg-emerald-50 hover:border-emerald-200 transition-all">
+                <label className="flex-1 cursor-pointer bg-white dark:bg-[#1a2e26] border border-dashed border-gray-300 dark:border-emerald-900/30 px-4 py-2.5 rounded-xl text-[10px] flex items-center justify-center hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-all uppercase font-black text-gray-400">
                   <Camera size={16} className="mr-2 text-emerald-600" /> 
-                  <span className="font-bold text-gray-500">{newExp.billCopyUrl ? 'Change' : 'Upload Image'}</span>
+                  <span>{newExp.billCopyUrl ? 'Change' : 'Upload'}</span>
                   <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
                 </label>
                 {newExp.billCopyUrl && (
                   <button 
                     onClick={() => setShowImageZoom(newExp.billCopyUrl!)}
-                    className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl hover:bg-emerald-200 transition-colors shadow-sm"
-                    title="Preview Uploaded Bill"
+                    className="p-2.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-xl hover:bg-emerald-200 transition-colors shadow-sm"
                   >
                     <ZoomIn size={18} />
                   </button>
@@ -185,40 +193,40 @@ const ExpensesView: React.FC<Props> = ({ onNewNotification }) => {
           </div>
           <button 
             onClick={handleAdd}
-            className="mt-8 w-full bg-emerald-600 text-white py-4 rounded-2xl font-black text-lg shadow-lg hover:bg-emerald-700 active:scale-95 transition-all flex items-center justify-center tracking-tight uppercase"
+            className="mt-8 w-full bg-emerald-600 text-white py-4 rounded-2xl font-black text-sm shadow-xl hover:bg-emerald-700 active:scale-95 transition-all flex items-center justify-center tracking-widest uppercase"
           >
-            <Wallet size={20} className="mr-2" /> SAVE EXPENSE RECORD
+            <Save size={18} className="mr-2" /> Commit Expense Record
           </button>
         </div>
       )}
 
-      <div className="bg-white rounded-3xl shadow-xl border border-gray-50 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-gray-50 border-b">
-              <tr className="text-[10px] font-black uppercase text-gray-400 tracking-widest">
-                <th className="px-8 py-5">Date</th>
-                <th className="px-8 py-5">Vehicle Details</th>
+      <div className="bg-white dark:bg-[#121a16] rounded-[2rem] shadow-xl border border-gray-50 dark:border-emerald-900/10 overflow-hidden mx-2">
+        <div className="overflow-x-auto no-scrollbar">
+          <table className="w-full text-left border-collapse min-w-[800px]">
+            <thead className="bg-gray-50/50 dark:bg-emerald-900/10 border-b dark:border-emerald-900/10">
+              <tr className="text-[10px] font-black uppercase text-gray-400 dark:text-emerald-500/40 tracking-widest">
+                <th className="px-8 py-5">Entry Date</th>
+                <th className="px-8 py-5">Asset Details</th>
                 <th className="px-8 py-5">Category</th>
                 <th className="px-8 py-5 text-right">Amount</th>
                 <th className="px-8 py-5 text-center">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-gray-50 dark:divide-emerald-900/10">
               {expenses.map((exp) => (
-                <tr key={exp.id} className="hover:bg-emerald-50/20 transition-colors group">
-                  <td className="px-8 py-6 text-sm font-bold text-gray-500">{exp.date}</td>
+                <tr key={exp.id} className="hover:bg-emerald-50/20 dark:hover:bg-emerald-900/5 transition-colors group">
+                  <td className="px-8 py-6 text-xs font-black text-gray-500 dark:text-emerald-100/40 uppercase tracking-widest">{exp.date}</td>
                   <td className="px-8 py-6">
-                    <div className="text-sm font-black text-gray-900">
-                      {vehicles.find(v => v.id === exp.vehicleId)?.name || 'Unknown Vehicle'}
+                    <div className="text-sm font-black text-gray-900 dark:text-gray-100">
+                      {vehicles.find(v => v.id === exp.vehicleId)?.name || 'Unknown Asset'}
                     </div>
-                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
-                      {vehicles.find(v => v.id === exp.vehicleId)?.number || 'No Number'}
+                    <div className="text-[10px] font-bold text-gray-400 dark:text-emerald-500/30 uppercase tracking-tighter">
+                      {vehicles.find(v => v.id === exp.vehicleId)?.number || 'N/A'}
                     </div>
                   </td>
                   <td className="px-8 py-6">
-                    <div className="flex items-center text-sm font-bold text-gray-700">
-                      <div className="p-1.5 bg-gray-100 rounded-lg mr-3 text-gray-500 group-hover:bg-emerald-100 group-hover:text-emerald-600 transition-colors">
+                    <div className="flex items-center text-xs font-black text-gray-700 dark:text-emerald-100/60 uppercase tracking-widest">
+                      <div className="p-1.5 bg-gray-100 dark:bg-emerald-900/20 rounded-lg mr-3 text-gray-500 dark:text-emerald-400 group-hover:bg-emerald-100 group-hover:text-emerald-600 transition-colors">
                         {exp.category === ExpenseCategory.DIESEL && <Fuel size={14} />}
                         {exp.category === ExpenseCategory.FOOD && <Utensils size={14} />}
                         {exp.category === ExpenseCategory.TAX_TOLL && <FileText size={14} />}
@@ -228,23 +236,21 @@ const ExpensesView: React.FC<Props> = ({ onNewNotification }) => {
                     </div>
                   </td>
                   <td className="px-8 py-6 text-right">
-                    <div className="text-sm font-black text-red-600">₹{exp.amount.toLocaleString()}</div>
+                    <div className="text-sm font-black text-red-600 dark:text-red-400">₹{exp.amount.toLocaleString()}</div>
                   </td>
                   <td className="px-8 py-6">
                     <div className="flex justify-center items-center space-x-2">
                       {exp.billCopyUrl && (
                         <button 
                           onClick={() => setShowImageZoom(exp.billCopyUrl!)}
-                          className="p-2.5 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-all shadow-sm"
-                          title="View Bill Image"
+                          className="p-2.5 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 rounded-xl transition-all shadow-sm"
                         >
                           <Eye size={18} />
                         </button>
                       )}
                       <button 
                         onClick={() => deleteExpense(exp.id)} 
-                        className="p-2.5 text-red-400 bg-red-50 hover:bg-red-100 hover:text-red-600 rounded-xl transition-all shadow-sm"
-                        title="Delete Entry"
+                        className="p-2.5 text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 hover:text-red-600 rounded-xl transition-all shadow-sm"
                       >
                         <Trash2 size={18} />
                       </button>
@@ -255,9 +261,9 @@ const ExpensesView: React.FC<Props> = ({ onNewNotification }) => {
               {expenses.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-8 py-24 text-center">
-                    <div className="flex flex-col items-center opacity-20">
+                    <div className="flex flex-col items-center opacity-10">
                       <Wallet size={48} className="mb-4" />
-                      <p className="font-black uppercase tracking-widest text-xs">No expense records found</p>
+                      <p className="font-black uppercase tracking-widest text-[10px]">No records found</p>
                     </div>
                   </td>
                 </tr>
@@ -267,19 +273,18 @@ const ExpensesView: React.FC<Props> = ({ onNewNotification }) => {
         </div>
       </div>
 
-      {/* Image Zoom Modal */}
       {showImageZoom && (
         <div 
           className="fixed inset-0 z-[110] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 transition-all duration-300 animate-in fade-in" 
           onClick={() => setShowImageZoom(null)}
         >
-          <div className="relative max-w-full max-h-full p-2 bg-white rounded-3xl shadow-2xl animate-in zoom-in duration-300" onClick={e => e.stopPropagation()}>
-            <img src={showImageZoom} alt="Bill Preview" className="max-h-[80vh] rounded-2xl shadow-inner border border-gray-100" />
+          <div className="relative max-w-full max-h-full p-2 bg-white rounded-[2rem] shadow-2xl animate-in zoom-in duration-300" onClick={e => e.stopPropagation()}>
+            <img src={showImageZoom} alt="Receipt Preview" className="max-h-[80vh] rounded-2xl shadow-inner border border-gray-100" />
             <button 
               onClick={() => setShowImageZoom(null)}
-              className="absolute -top-12 right-0 text-white flex items-center space-x-2 bg-red-600 px-6 py-2 rounded-full font-black shadow-lg hover:bg-red-700 transition-all tracking-tight uppercase text-xs"
+              className="absolute -top-12 right-0 text-white flex items-center space-x-2 bg-red-600 px-6 py-2 rounded-full font-black shadow-lg hover:bg-red-700 transition-all tracking-tight uppercase text-[10px]"
             >
-              <X size={18} /> <span>Close Preview</span>
+              <X size={18} /> <span>Dismiss</span>
             </button>
           </div>
         </div>

@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import { Shield, Mail, Smartphone, Plus, UserPlus, Trash2, Edit, X, Save, KeyRound, Eye, EyeOff, UserCheck } from 'lucide-react';
+import { GoogleDriveService } from '../GoogleDriveService';
 
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -15,8 +17,9 @@ const UserManagement: React.FC = () => {
     password: ''
   });
 
+  const sessionUser = JSON.parse(localStorage.getItem('harvester_session') || '{}');
+
   useEffect(() => {
-    // Fetch users from the same key used in Auth.tsx signup
     const saved = JSON.parse(localStorage.getItem('harvester_users') || '[]');
     setUsers(saved);
   }, []);
@@ -50,21 +53,19 @@ const UserManagement: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleAddOrUpdate = () => {
+  const handleAddOrUpdate = async () => {
     if (!newUser.name || !newUser.userId) {
       alert("Name and User ID are mandatory fields.");
       return;
     }
 
     const allUsers: User[] = JSON.parse(localStorage.getItem('harvester_users') || '[]');
+    let updatedUsers: User[];
     
     if (editingUser) {
-      const updatedUsers = allUsers.map(u => 
+      updatedUsers = allUsers.map(u => 
         u.id === editingUser.id ? { ...u, ...newUser as User } : u
       );
-      setUsers(updatedUsers);
-      localStorage.setItem('harvester_users', JSON.stringify(updatedUsers));
-      alert("User account updated successfully!");
     } else {
       if (allUsers.some(u => u.userId === newUser.userId)) {
         alert("This User ID is already taken. Please choose another.");
@@ -78,21 +79,30 @@ const UserManagement: React.FC = () => {
         email: newUser.email!,
         password: newUser.password!
       };
-      const updated = [...allUsers, user];
-      setUsers(updated);
-      localStorage.setItem('harvester_users', JSON.stringify(updated));
-      alert("New user registered successfully!");
+      updatedUsers = [...allUsers, user];
     }
+    
+    setUsers(updatedUsers);
+    localStorage.setItem('harvester_users', JSON.stringify(updatedUsers));
+    
+    if (GoogleDriveService.isConnected()) {
+      await GoogleDriveService.syncUsers(sessionUser.id);
+    }
+    
+    alert(editingUser ? "User updated!" : "User registered!");
     resetForm();
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to delete this user? They will lose access to the system immediately.")) {
       const updated = users.filter(u => u.id !== id);
       setUsers(updated);
       localStorage.setItem('harvester_users', JSON.stringify(updated));
       
-      // Clear form after deletion if the user being edited is the one deleted
+      if (GoogleDriveService.isConnected()) {
+        await GoogleDriveService.syncUsers(sessionUser.id);
+      }
+      
       if (editingUser?.id === id) {
         resetForm();
       }
@@ -131,62 +141,29 @@ const UserManagement: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-gray-400 dark:text-emerald-500/40 uppercase tracking-widest ml-1">Full Name</label>
-              <input 
-                type="text" 
-                placeholder="Ex: Rajesh Kumar" 
-                value={newUser.name} 
-                onChange={e => setNewUser({...newUser, name: e.target.value})} 
-                className="w-full bg-gray-50/50 dark:bg-[#1a2e26] border border-gray-100 dark:border-emerald-900/20 rounded-2xl p-4 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800 dark:text-emerald-50 transition-all text-sm" 
-              />
+              <input type="text" placeholder="Ex: Rajesh Kumar" value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} className="w-full bg-gray-50/50 dark:bg-[#1a2e26] border border-gray-100 dark:border-emerald-900/20 rounded-2xl p-4 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800 dark:text-emerald-50 transition-all text-sm" />
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-gray-400 dark:text-emerald-500/40 uppercase tracking-widest ml-1">Unique Username (User ID)</label>
-              <input 
-                type="text" 
-                placeholder="login_id" 
-                value={newUser.userId} 
-                onChange={e => setNewUser({...newUser, userId: e.target.value})} 
-                className="w-full bg-gray-50/50 dark:bg-[#1a2e26] border border-gray-100 dark:border-emerald-900/20 rounded-2xl p-4 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800 dark:text-emerald-50 transition-all text-sm" 
-              />
+              <input type="text" placeholder="login_id" value={newUser.userId} onChange={e => setNewUser({...newUser, userId: e.target.value})} className="w-full bg-gray-50/50 dark:bg-[#1a2e26] border border-gray-100 dark:border-emerald-900/20 rounded-2xl p-4 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800 dark:text-emerald-50 transition-all text-sm" />
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-gray-400 dark:text-emerald-500/40 uppercase tracking-widest ml-1">Mobile Contact</label>
-              <input 
-                type="tel" 
-                placeholder="10-digit number" 
-                value={newUser.mobile} 
-                onChange={e => setNewUser({...newUser, mobile: e.target.value})} 
-                className="w-full bg-gray-50/50 dark:bg-[#1a2e26] border border-gray-100 dark:border-emerald-900/20 rounded-2xl p-4 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800 dark:text-emerald-50 transition-all text-sm" 
-              />
+              <input type="tel" placeholder="10-digit number" value={newUser.mobile} onChange={e => setNewUser({...newUser, mobile: e.target.value})} className="w-full bg-gray-50/50 dark:bg-[#1a2e26] border border-gray-100 dark:border-emerald-900/20 rounded-2xl p-4 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800 dark:text-emerald-50 transition-all text-sm" />
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-gray-400 dark:text-emerald-500/40 uppercase tracking-widest ml-1">Email Address</label>
-              <input 
-                type="email" 
-                placeholder="name@business.com" 
-                value={newUser.email} 
-                onChange={e => setNewUser({...newUser, email: e.target.value})} 
-                className="w-full bg-gray-50/50 dark:bg-[#1a2e26] border border-gray-100 dark:border-emerald-900/20 rounded-2xl p-4 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800 dark:text-emerald-50 transition-all text-sm" 
-              />
+              <input type="email" placeholder="name@business.com" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} className="w-full bg-gray-50/50 dark:bg-[#1a2e26] border border-gray-100 dark:border-emerald-900/20 rounded-2xl p-4 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800 dark:text-emerald-50 transition-all text-sm" />
             </div>
             <div className="space-y-1.5 md:col-span-2">
               <label className="text-[10px] font-black text-gray-400 dark:text-emerald-500/40 uppercase tracking-widest ml-1">Account Password</label>
               <div className="relative">
-                <input 
-                  type="text" 
-                  placeholder="Set login password" 
-                  value={newUser.password} 
-                  onChange={e => setNewUser({...newUser, password: e.target.value})} 
-                  className="w-full bg-gray-50/50 dark:bg-[#1a2e26] border border-gray-100 dark:border-emerald-900/20 rounded-2xl p-4 pl-12 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800 dark:text-emerald-50 transition-all text-sm" 
-                />
+                <input type="text" placeholder="Set login password" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} className="w-full bg-gray-50/50 dark:bg-[#1a2e26] border border-gray-100 dark:border-emerald-900/20 rounded-2xl p-4 pl-12 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800 dark:text-emerald-50 transition-all text-sm" />
                 <KeyRound className="absolute left-4 top-4 text-emerald-400/50" size={20} />
               </div>
             </div>
             
-            <button 
-              onClick={handleAddOrUpdate} 
-              className="md:col-span-2 bg-emerald-600 text-white font-black rounded-2xl p-5 shadow-xl shadow-emerald-900/10 hover:bg-emerald-700 active:scale-[0.98] transition-all uppercase tracking-[0.2em] text-xs flex items-center justify-center space-x-3"
-            >
+            <button onClick={handleAddOrUpdate} className="md:col-span-2 bg-emerald-600 text-white font-black rounded-2xl p-5 shadow-xl shadow-emerald-900/10 hover:bg-emerald-700 active:scale-[0.98] transition-all uppercase tracking-[0.2em] text-xs flex items-center justify-center space-x-3">
               <Save size={18} />
               <span>{editingUser ? 'Save Account Changes' : 'Initialize New User'}</span>
             </button>
@@ -194,9 +171,7 @@ const UserManagement: React.FC = () => {
         </div>
       )}
 
-      {/* Users Desktop Table / Mobile Card List */}
       <div className="bg-white dark:bg-[#121a16] rounded-[2rem] shadow-xl border border-gray-50 dark:border-emerald-900/20 overflow-hidden mx-2">
-        {/* Mobile-Friendly Grid (visible on small screens) */}
         <div className="md:hidden divide-y divide-gray-50 dark:divide-emerald-900/10">
           {users.map(user => (
             <div key={user.id} className="p-6 space-y-4">
@@ -215,7 +190,6 @@ const UserManagement: React.FC = () => {
                   <button onClick={() => handleDelete(user.id)} className="p-2.5 text-red-400 bg-red-50 dark:bg-red-900/20 rounded-xl"><Trash2 size={16}/></button>
                 </div>
               </div>
-              
               <div className="grid grid-cols-2 gap-3 text-[10px] font-bold uppercase tracking-tighter">
                 <div className="bg-gray-50 dark:bg-emerald-900/10 p-3 rounded-xl border border-gray-100 dark:border-emerald-900/10">
                   <span className="text-gray-400 dark:text-emerald-500/30 block mb-1">Mobile</span>
@@ -231,14 +205,10 @@ const UserManagement: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div className="bg-emerald-50/30 dark:bg-emerald-900/20 p-3 rounded-xl border border-emerald-50 dark:border-emerald-900/10 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 flex items-center truncate">
-                <Mail size={12} className="mr-2 flex-shrink-0" /> {user.email || 'No email registered'}
-              </div>
             </div>
           ))}
         </div>
 
-        {/* Desktop Table (hidden on mobile) */}
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left">
             <thead>
@@ -290,34 +260,12 @@ const UserManagement: React.FC = () => {
                   </td>
                   <td className="px-8 py-6">
                     <div className="flex justify-center items-center space-x-2">
-                      <button 
-                        onClick={() => handleEditClick(user)} 
-                        className="p-3 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded-2xl transition-all shadow-sm hover:scale-105 active:scale-95"
-                        title="Edit User"
-                      >
-                        <Edit size={18} />
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(user.id)} 
-                        className="p-3 text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 hover:text-red-600 rounded-2xl transition-all shadow-sm hover:scale-105 active:scale-95"
-                        title="Delete User"
-                      >
-                        <Trash2 size={18}/>
-                      </button>
+                      <button onClick={() => handleEditClick(user)} className="p-3 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl transition-all shadow-sm hover:scale-105 active:scale-95"><Edit size={18} /></button>
+                      <button onClick={() => handleDelete(user.id)} className="p-3 text-red-400 bg-red-50 dark:bg-red-900/20 rounded-2xl transition-all shadow-sm hover:scale-105 active:scale-95"><Trash2 size={18}/></button>
                     </div>
                   </td>
                 </tr>
               ))}
-              {users.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-8 py-24 text-center">
-                    <div className="flex flex-col items-center opacity-20">
-                      <UserPlus size={48} className="mb-4" />
-                      <p className="font-black uppercase tracking-[0.2em] text-xs">No user accounts found in registry</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>

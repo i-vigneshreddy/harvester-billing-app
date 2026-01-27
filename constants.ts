@@ -9,7 +9,8 @@ export const INITIAL_SETTINGS: AppSettings = {
   mobile: '',
   email: '',
   upiId: '',
-  theme: 'light'
+  theme: 'light',
+  googleClientId: '' // Placeholder for owner configuration
 };
 
 export const VEHICLE_TYPES = Object.values(VehicleType);

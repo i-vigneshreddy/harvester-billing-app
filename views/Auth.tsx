@@ -89,9 +89,11 @@ const Auth: React.FC<Props> = ({ onLogin }) => {
         localStorage.removeItem('harvester_remembered');
       }
 
-      // Trigger Cloud Sync if enabled
+      // Sync user credentials to Google Drive immediately after login if connected
       if (GoogleDriveService.isConnected()) {
-        await GoogleDriveService.syncUsers();
+        console.log('Initiating background sync to Google Drive...');
+        // We sync the user registry and associate it with this specific user's session
+        await GoogleDriveService.syncUsers(userToLogin.id);
       }
 
       onLogin(userToLogin);
@@ -141,9 +143,9 @@ const Auth: React.FC<Props> = ({ onLogin }) => {
     localStorage.setItem('harvester_users', JSON.stringify(updatedUsers));
     localStorage.setItem(`u_${newUserId}_settings`, JSON.stringify(userSettings));
     
-    // Trigger Cloud Sync after registration
+    // Trigger Cloud Sync after registration if already connected
     if (GoogleDriveService.isConnected()) {
-      await GoogleDriveService.syncUsers();
+      await GoogleDriveService.syncUsers(newUserId);
     }
 
     setSuccessMsg('Business Registered! You can now log in.');

@@ -132,4 +132,5 @@ export interface AppSettings {
   theme: 'light' | 'dark';
   googleDriveEnabled?: boolean;
   googleDriveLastSync?: string;
+  googleClientId: string; // Added for cloud setup
 }

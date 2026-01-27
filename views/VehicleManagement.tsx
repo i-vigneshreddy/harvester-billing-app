@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Truck, Tag, Hash, X, Save } from 'lucide-react';
 import { Vehicle, VehicleType } from '../types';
+import { GoogleDriveService } from '../GoogleDriveService';
 
 const VehicleManagement: React.FC = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -21,7 +22,7 @@ const VehicleManagement: React.FC = () => {
     setVehicles(saved);
   }, [userPrefix]);
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!newVehicle.name || !newVehicle.number) {
       alert("Please provide both machine name and number.");
       return;
@@ -36,18 +37,27 @@ const VehicleManagement: React.FC = () => {
     setVehicles(updated);
     localStorage.setItem(`${userPrefix}vehicles`, JSON.stringify(updated));
     
+    // Cloud Sync
+    if (GoogleDriveService.isConnected()) {
+      await GoogleDriveService.syncUsers(sessionUser.id);
+    }
+    
     // Clear form
     setNewVehicle({ name: '', type: VehicleType.HARVESTER, number: '' });
     setShowForm(false);
   };
 
-  const removeVehicle = (id: string) => {
+  const removeVehicle = async (id: string) => {
     if (confirm("Permanently remove this machine from inventory?")) {
       const updated = vehicles.filter(v => v.id !== id);
       setVehicles(updated);
       localStorage.setItem(`${userPrefix}vehicles`, JSON.stringify(updated));
       
-      // Satisfying requirement: Clear the add form when an item is deleted
+      // Cloud Sync
+      if (GoogleDriveService.isConnected()) {
+        await GoogleDriveService.syncUsers(sessionUser.id);
+      }
+      
       setNewVehicle({ name: '', type: VehicleType.HARVESTER, number: '' });
       setShowForm(false);
     }
